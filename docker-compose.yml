@@ -1,0 +1,13 @@
+services:
+  telegram-r2-backup:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: telegram-r2-backup
+    env_file:
+      - .env
+    restart: unless-stopped
+    command: ["python", "src/main.py"]
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
