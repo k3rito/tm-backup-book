@@ -2,9 +2,9 @@
 
 This project can run from GitHub Actions on a 15-minute schedule or manually with `workflow_dispatch`.
 
-## GitHub Secrets
+## GitHub Secrets / Variables
 
-Add these secrets to the repository:
+Set these values in repository secrets (preferred) or repository variables:
 
 - `API_ID`
 - `API_HASH`
