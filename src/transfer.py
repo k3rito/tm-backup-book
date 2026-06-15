@@ -83,11 +83,14 @@ class TransferService:
         self._pending_tasks: dict[int, asyncio.Task[TransferOutcome]] = {}
         self._task_ids: dict[asyncio.Task[TransferOutcome], int] = {}
         self._failure: Exception | None = None
+        self._highest_seen_id = 0
+        self._seen_ids: set[int] = set()
         self._started_at = datetime.now(tz=UTC)
 
     async def run(self) -> None:
         await ensure_progress_file(self._config.progress_file)
         await self._r2_client.connect()
+        await self._telegram_client.connect()
         self._progress_state = await self._load_progress_state()
         self._next_commit_id = self._progress_state.last_message_id + 1
 
@@ -102,7 +105,6 @@ class TransferService:
             },
         )
 
-        await self._telegram_client.connect()
 
         try:
             await self._run_pipeline()
@@ -131,13 +133,13 @@ class TransferService:
                 async for message in self._telegram_client.iter_messages(self._progress_state.last_message_id):
                     if self._failure is not None:
                         break
-
-                    self._metrics.scanned_messages += 1
-                    task = asyncio.create_task(self._process_message_with_retry(message))
                     message_id = int(getattr(message, "id", 0) or 0)
+                    self._metrics.scanned_messages += 1
+                    self._highest_seen_id = max(self._highest_seen_id, message_id)
+                    self._seen_ids.add(message_id)
+                    task = asyncio.create_task(self._process_message_with_retry(message))
                     self._pending_tasks[message_id] = task
                     self._task_ids[task] = message_id
-
                     if len(self._pending_tasks) >= self._config.max_concurrent_uploads:
                         await self._wait_for_any()
                         await self._flush_completed()
@@ -272,13 +274,22 @@ class TransferService:
 
     async def _flush_completed(self, force: bool = False) -> None:
         advanced = False
-        while self._next_commit_id in self._completed_outcomes:
-            outcome = self._completed_outcomes.pop(self._next_commit_id)
-            self._record_outcome(outcome)
-            advanced = True
-            self._progress_state = ProgressState(last_message_id=outcome.message_id)
-            await self._persist_progress_state()
-            self._next_commit_id = outcome.message_id + 1
+        while True:
+            if self._next_commit_id in self._completed_outcomes:
+                outcome = self._completed_outcomes.pop(self._next_commit_id)
+                self._record_outcome(outcome)
+                advanced = True
+                self._progress_state = ProgressState(last_message_id=outcome.message_id)
+                await self._persist_progress_state()
+                self._seen_ids.discard(self._next_commit_id)
+                self._next_commit_id += 1
+                continue
+
+            if self._next_commit_id < self._highest_seen_id and self._next_commit_id not in self._seen_ids:
+                self._next_commit_id += 1
+                continue
+
+            break
 
         if force and not advanced:
             await self._persist_progress_state()

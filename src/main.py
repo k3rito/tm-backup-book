@@ -64,6 +64,8 @@ async def main() -> None:
         sys.exit(1)
     finally:
         shutdown_task.cancel()
+        await telegram_client.close()
+        await r2_client.close()
 
 
 if __name__ == "__main__":
