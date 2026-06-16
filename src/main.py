@@ -17,6 +17,13 @@ async def main() -> None:
     ensure_runtime_directories(config)
     logger = setup_logging(config.log_file)
 
+    if not config.telegram_session_string:
+        logger.error(
+            "missing telegram session string",
+            extra={"status": "unconfigured", "error": "TELEGRAM_SESSION_STRING is required"}
+        )
+        return
+
     logger.info(
         "configuration loaded",
         extra={

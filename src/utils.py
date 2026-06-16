@@ -109,7 +109,7 @@ def load_config() -> AppConfig:
     r2_secret_key = _read_str_env("R2_SECRET_KEY", required=True)
     max_concurrent_uploads = _read_int_env("MAX_CONCURRENT_UPLOADS", default=3)
     telegram_session_name = _read_str_env("TELEGRAM_SESSION_NAME", default="telegram_r2_backup")
-    telegram_session_string = _read_str_env("TELEGRAM_SESSION_STRING", required=True)
+    telegram_session_string = _read_str_env("TELEGRAM_SESSION_STRING", required=False)
 
     return AppConfig(
         api_id=api_id,
