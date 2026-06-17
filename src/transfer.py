@@ -280,7 +280,6 @@ class TransferService:
                 self._record_outcome(outcome)
                 advanced = True
                 self._progress_state = ProgressState(last_message_id=outcome.message_id)
-                await self._persist_progress_state()
                 self._seen_ids.discard(self._next_commit_id)
                 self._next_commit_id += 1
                 continue
@@ -291,7 +290,7 @@ class TransferService:
 
             break
 
-        if force and not advanced:
+        if advanced or (force and not advanced):
             await self._persist_progress_state()
 
     async def _load_progress_state(self) -> ProgressState:
@@ -320,6 +319,7 @@ class TransferService:
         elif outcome.status == "skipped_unsupported":
             self._metrics.skipped_unsupported += 1
 
+        rss_bytes = current_rss_bytes()
         self._logger.info(
             "message processed",
             extra={
@@ -330,8 +330,8 @@ class TransferService:
                 "size_bytes": outcome.size_bytes,
                 "speed_bytes_per_sec": outcome.bytes_per_second,
                 "duration_seconds": round(outcome.duration_seconds, 3),
-                "rss_bytes": current_rss_bytes(),
-                "rss_mb": round(current_rss_bytes() / (1024 * 1024), 2),
+                "rss_bytes": rss_bytes,
+                "rss_mb": round(rss_bytes / (1024 * 1024), 2),
             },
         )
 
@@ -362,6 +362,7 @@ class TransferService:
                 "queued_tasks": snapshot.queued_tasks,
             },
         )
+        rss_bytes = current_rss_bytes()
         self._logger.info(
             "transfer finished",
             extra={
@@ -374,7 +375,7 @@ class TransferService:
                 "failed_messages": summary["failed_messages"],
                 "bytes_uploaded": summary["bytes_uploaded"],
                 "throughput_bytes_per_sec": summary["throughput_bytes_per_sec"],
-                "rss_bytes": current_rss_bytes(),
-                "rss_mb": round(current_rss_bytes() / (1024 * 1024), 2),
+                "rss_bytes": rss_bytes,
+                "rss_mb": round(rss_bytes / (1024 * 1024), 2),
             },
         )
