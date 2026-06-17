@@ -135,15 +135,8 @@ class R2Client:
         client = self._client
         assert client is not None
 
-        if await self.object_exists(key):
-            return UploadResult(
-                key=key,
-                size_bytes=size_bytes,
-                duration_seconds=0.0,
-                bytes_per_second=0.0,
-                content_type=content_type,
-                existed=True,
-            )
+        # NOTE: We assume the caller has already checked if the object exists.
+        # This saves a redundant HEAD request per upload.
 
         if size_bytes == 0:
             started_at = time.perf_counter()
