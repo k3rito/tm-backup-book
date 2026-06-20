@@ -273,6 +273,10 @@ class TransferService:
         )
 
     async def _flush_completed(self, force: bool = False) -> None:
+        """
+        Flushes completed outcomes and advances progress state.
+        Batching state persistence to R2 improves performance by reducing network I/O.
+        """
         advanced = False
         while True:
             if self._next_commit_id in self._completed_outcomes:
@@ -280,18 +284,21 @@ class TransferService:
                 self._record_outcome(outcome)
                 advanced = True
                 self._progress_state = ProgressState(last_message_id=outcome.message_id)
-                await self._persist_progress_state()
                 self._seen_ids.discard(self._next_commit_id)
                 self._next_commit_id += 1
                 continue
 
             if self._next_commit_id < self._highest_seen_id and self._next_commit_id not in self._seen_ids:
+                # Advance progress for gaps in message IDs
+                self._progress_state = ProgressState(last_message_id=self._next_commit_id)
+                advanced = True
                 self._next_commit_id += 1
                 continue
 
             break
 
-        if force and not advanced:
+        # Persist once per batch instead of for every message
+        if advanced or force:
             await self._persist_progress_state()
 
     async def _load_progress_state(self) -> ProgressState:
