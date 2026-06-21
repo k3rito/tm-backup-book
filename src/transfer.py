@@ -105,7 +105,6 @@ class TransferService:
             },
         )
 
-
         try:
             await self._run_pipeline()
             await self._flush_completed(force=True)
@@ -203,7 +202,7 @@ class TransferService:
         for attempt in range(1, 6):
             try:
                 return await self._process_message(message)
-            except Exception as exc:
+            except Exception:
                 if attempt == 5:
                     raise
                 self._logger.warning(
@@ -273,6 +272,10 @@ class TransferService:
         )
 
     async def _flush_completed(self, force: bool = False) -> None:
+        """
+        Processes completed message outcomes and advances the progress state.
+        R2 state persistence is batched to happen once per flush call.
+        """
         advanced = False
         while True:
             if self._next_commit_id in self._completed_outcomes:
@@ -280,7 +283,6 @@ class TransferService:
                 self._record_outcome(outcome)
                 advanced = True
                 self._progress_state = ProgressState(last_message_id=outcome.message_id)
-                await self._persist_progress_state()
                 self._seen_ids.discard(self._next_commit_id)
                 self._next_commit_id += 1
                 continue
@@ -291,7 +293,7 @@ class TransferService:
 
             break
 
-        if force and not advanced:
+        if advanced or force:
             await self._persist_progress_state()
 
     async def _load_progress_state(self) -> ProgressState:

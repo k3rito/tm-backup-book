@@ -1,0 +1,3 @@
+## 2025-05-15 - Batching S3/R2 Progress State Persistence
+**Learning:** In a high-volume streaming service, persisting progress state to remote storage (like Cloudflare R2) for every individual message creates a significant I/O bottleneck and increases API costs. Batching these updates to happen once per processing cycle (e.g., after a concurrent batch finishes) provides a massive performance gain without sacrificing reliability (maintaining at-least-once semantics).
+**Action:** Always check if persistence or state-sync calls are inside tight loops or per-message processing paths, and move them to the end of the batch or flush cycle.
