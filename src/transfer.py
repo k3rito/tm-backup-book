@@ -105,7 +105,6 @@ class TransferService:
             },
         )
 
-
         try:
             await self._run_pipeline()
             await self._flush_completed(force=True)
@@ -203,7 +202,7 @@ class TransferService:
         for attempt in range(1, 6):
             try:
                 return await self._process_message(message)
-            except Exception as exc:
+            except Exception:
                 if attempt == 5:
                     raise
                 self._logger.warning(
@@ -280,18 +279,19 @@ class TransferService:
                 self._record_outcome(outcome)
                 advanced = True
                 self._progress_state = ProgressState(last_message_id=outcome.message_id)
-                await self._persist_progress_state()
                 self._seen_ids.discard(self._next_commit_id)
                 self._next_commit_id += 1
                 continue
 
             if self._next_commit_id < self._highest_seen_id and self._next_commit_id not in self._seen_ids:
+                advanced = True
+                self._progress_state = ProgressState(last_message_id=self._next_commit_id)
                 self._next_commit_id += 1
                 continue
 
             break
 
-        if force and not advanced:
+        if advanced or force:
             await self._persist_progress_state()
 
     async def _load_progress_state(self) -> ProgressState:
