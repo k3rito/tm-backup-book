@@ -105,7 +105,6 @@ class TransferService:
             },
         )
 
-
         try:
             await self._run_pipeline()
             await self._flush_completed(force=True)
@@ -211,6 +210,7 @@ class TransferService:
                     extra={
                         "status": "retrying",
                         "message_id": int(getattr(message, "id", 0) or 0),
+                        "error": str(exc),
                         "rss_bytes": current_rss_bytes(),
                         "rss_mb": round(current_rss_bytes() / (1024 * 1024), 2),
                     },
@@ -273,6 +273,12 @@ class TransferService:
         )
 
     async def _flush_completed(self, force: bool = False) -> None:
+        """
+        Processes and commits completed outcomes in message-id order.
+        To optimize performance, progress state persistence is batched:
+        it occurs once after processing all available completed messages,
+        reducing redundant R2 network calls and local I/O.
+        """
         advanced = False
         while True:
             if self._next_commit_id in self._completed_outcomes:
@@ -280,7 +286,6 @@ class TransferService:
                 self._record_outcome(outcome)
                 advanced = True
                 self._progress_state = ProgressState(last_message_id=outcome.message_id)
-                await self._persist_progress_state()
                 self._seen_ids.discard(self._next_commit_id)
                 self._next_commit_id += 1
                 continue
@@ -291,7 +296,7 @@ class TransferService:
 
             break
 
-        if force and not advanced:
+        if advanced or force:
             await self._persist_progress_state()
 
     async def _load_progress_state(self) -> ProgressState:
