@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import mimetypes
 import os
@@ -25,6 +24,8 @@ APP_LOG_FILE = LOGS_DIR / "app.log"
 R2_PROGRESS_KEY = "state/progress.json"
 DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024
 TELEGRAM_REQUEST_SIZE = 512 * 1024
+RE_NON_ALPHANUM = re.compile(r"[^A-Za-z0-9._-]+")
+RE_MULTIPLE_UNDERSCORES = re.compile(r"_+")
 SUPPORTED_ARCHIVE_EXTENSIONS = {
     ".7z",
     ".bz2",
@@ -144,8 +145,8 @@ def sanitize_filename(value: str, fallback: str = "file") -> str:
     value = value.strip().replace("\\", "/")
     if "/" in value:
         value = value.split("/")[-1]
-    value = re.sub(r"[^A-Za-z0-9._-]+", "_", value)
-    value = re.sub(r"_+", "_", value).strip("._-")
+    value = RE_NON_ALPHANUM.sub("_", value)
+    value = RE_MULTIPLE_UNDERSCORES.sub("_", value).strip("._-")
     if not value:
         value = fallback
     if len(value) > 180:
