@@ -1,12 +1,18 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import mimetypes
 import os
 import re
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
+
+try:
+    import psutil
+    _PROCESS = psutil.Process()
+except ImportError:
+    psutil = None
+    _PROCESS = None
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -25,6 +31,9 @@ APP_LOG_FILE = LOGS_DIR / "app.log"
 R2_PROGRESS_KEY = "state/progress.json"
 DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024
 TELEGRAM_REQUEST_SIZE = 512 * 1024
+
+RE_NON_ALPHANUM = re.compile(r"[^A-Za-z0-9._-]+")
+RE_UNDERSCORES = re.compile(r"_+")
 SUPPORTED_ARCHIVE_EXTENSIONS = {
     ".7z",
     ".bz2",
@@ -141,11 +150,12 @@ def normalize_channel_ref(value: str) -> str:
 
 
 def sanitize_filename(value: str, fallback: str = "file") -> str:
+    # Pre-compiled regex used for better performance in a frequently called utility.
     value = value.strip().replace("\\", "/")
     if "/" in value:
         value = value.split("/")[-1]
-    value = re.sub(r"[^A-Za-z0-9._-]+", "_", value)
-    value = re.sub(r"_+", "_", value).strip("._-")
+    value = RE_NON_ALPHANUM.sub("_", value)
+    value = RE_UNDERSCORES.sub("_", value).strip("._-")
     if not value:
         value = fallback
     if len(value) > 180:
@@ -309,11 +319,14 @@ def format_speed(bytes_per_second: float) -> str:
 
 
 def current_rss_bytes() -> int:
+    """
+    Returns the current Resident Set Size (RSS) in bytes.
+    Optimized by caching the psutil.Process instance.
+    """
+    if _PROCESS is None:
+        return 0
     try:
-        import psutil  # type: ignore
-
-        process = psutil.Process()
-        return int(process.memory_info().rss)
+        return int(_PROCESS.memory_info().rss)
     except Exception:
         return 0
 

@@ -105,7 +105,6 @@ class TransferService:
             },
         )
 
-
         try:
             await self._run_pipeline()
             await self._flush_completed(force=True)
@@ -203,7 +202,7 @@ class TransferService:
         for attempt in range(1, 6):
             try:
                 return await self._process_message(message)
-            except Exception as exc:
+            except Exception:
                 if attempt == 5:
                     raise
                 self._logger.warning(
