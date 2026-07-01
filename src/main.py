@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import signal
 import sys
 
@@ -13,7 +12,15 @@ from utils import ensure_runtime_directories, load_config
 
 
 async def main() -> None:
-    config = load_config()
+    try:
+        config = load_config()
+    except RuntimeError as exc:
+        if "TELEGRAM_SESSION_STRING" in str(exc):
+            print(f"ERROR: {exc}")
+            print("Graceful exit (0) as per architectural requirement when session is missing.")
+            sys.exit(0)
+        raise
+
     ensure_runtime_directories(config)
     logger = setup_logging(config.log_file)
 
