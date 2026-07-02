@@ -14,6 +14,12 @@ from urllib.parse import urlparse
 from aiofiles import open as aio_open
 from dotenv import load_dotenv
 
+try:
+    import psutil  # type: ignore
+    _PROCESS = psutil.Process()
+except ImportError:
+    _PROCESS = None
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
@@ -309,11 +315,11 @@ def format_speed(bytes_per_second: float) -> str:
 
 
 def current_rss_bytes() -> int:
+    """Returns the current process resident set size in bytes."""
+    if _PROCESS is None:
+        return 0
     try:
-        import psutil  # type: ignore
-
-        process = psutil.Process()
-        return int(process.memory_info().rss)
+        return int(_PROCESS.memory_info().rss)
     except Exception:
         return 0
 
