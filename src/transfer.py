@@ -105,7 +105,6 @@ class TransferService:
             },
         )
 
-
         try:
             await self._run_pipeline()
             await self._flush_completed(force=True)
@@ -273,6 +272,10 @@ class TransferService:
         )
 
     async def _flush_completed(self, force: bool = False) -> None:
+        """
+        Flushes completed outcomes and advances progress state.
+        Batching persistence significantly reduces R2 and disk I/O overhead.
+        """
         advanced = False
         while True:
             if self._next_commit_id in self._completed_outcomes:
@@ -280,18 +283,20 @@ class TransferService:
                 self._record_outcome(outcome)
                 advanced = True
                 self._progress_state = ProgressState(last_message_id=outcome.message_id)
-                await self._persist_progress_state()
                 self._seen_ids.discard(self._next_commit_id)
                 self._next_commit_id += 1
                 continue
 
             if self._next_commit_id < self._highest_seen_id and self._next_commit_id not in self._seen_ids:
+                # Advance through gaps in message IDs (e.g. deleted or non-media messages)
+                self._progress_state = ProgressState(last_message_id=self._next_commit_id)
                 self._next_commit_id += 1
+                advanced = True
                 continue
 
             break
 
-        if force and not advanced:
+        if advanced or force:
             await self._persist_progress_state()
 
     async def _load_progress_state(self) -> ProgressState:
