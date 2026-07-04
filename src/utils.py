@@ -308,12 +308,21 @@ def format_speed(bytes_per_second: float) -> str:
     return f"{format_bytes(bytes_per_second)}/s"
 
 
-def current_rss_bytes() -> int:
-    try:
-        import psutil  # type: ignore
+_PROCESS_INSTANCE: Any | None = None
 
-        process = psutil.Process()
-        return int(process.memory_info().rss)
+
+def current_rss_bytes() -> int:
+    """
+    Returns the current RSS memory usage in bytes.
+    Optimized by caching the psutil.Process instance to avoid repeated instantiation.
+    """
+    global _PROCESS_INSTANCE
+    try:
+        if _PROCESS_INSTANCE is None:
+            import psutil  # type: ignore
+
+            _PROCESS_INSTANCE = psutil.Process()
+        return _PROCESS_INSTANCE.memory_info().rss
     except Exception:
         return 0
 
