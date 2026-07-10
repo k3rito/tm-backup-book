@@ -94,17 +94,17 @@ class TransferService:
         self._progress_state = await self._load_progress_state()
         self._next_commit_id = self._progress_state.last_message_id + 1
 
+        rss_bytes = current_rss_bytes()
         self._logger.info(
             "starting transfer",
             extra={
                 "status": "started",
                 "progress_last_message_id": self._progress_state.last_message_id,
                 "queued_tasks": 0,
-                "rss_bytes": current_rss_bytes(),
-                "rss_mb": round(current_rss_bytes() / (1024 * 1024), 2),
+                "rss_bytes": rss_bytes,
+                "rss_mb": round(rss_bytes / (1024 * 1024), 2),
             },
         )
-
 
         try:
             await self._run_pipeline()
@@ -203,7 +203,7 @@ class TransferService:
         for attempt in range(1, 6):
             try:
                 return await self._process_message(message)
-            except Exception as exc:
+            except Exception:
                 if attempt == 5:
                     raise
                 self._logger.warning(
@@ -280,7 +280,6 @@ class TransferService:
                 self._record_outcome(outcome)
                 advanced = True
                 self._progress_state = ProgressState(last_message_id=outcome.message_id)
-                await self._persist_progress_state()
                 self._seen_ids.discard(self._next_commit_id)
                 self._next_commit_id += 1
                 continue
@@ -291,7 +290,7 @@ class TransferService:
 
             break
 
-        if force and not advanced:
+        if advanced or (force and not advanced):
             await self._persist_progress_state()
 
     async def _load_progress_state(self) -> ProgressState:
@@ -320,6 +319,7 @@ class TransferService:
         elif outcome.status == "skipped_unsupported":
             self._metrics.skipped_unsupported += 1
 
+        rss_bytes = current_rss_bytes()
         self._logger.info(
             "message processed",
             extra={
@@ -330,8 +330,8 @@ class TransferService:
                 "size_bytes": outcome.size_bytes,
                 "speed_bytes_per_sec": outcome.bytes_per_second,
                 "duration_seconds": round(outcome.duration_seconds, 3),
-                "rss_bytes": current_rss_bytes(),
-                "rss_mb": round(current_rss_bytes() / (1024 * 1024), 2),
+                "rss_bytes": rss_bytes,
+                "rss_mb": round(rss_bytes / (1024 * 1024), 2),
             },
         )
 
