@@ -94,17 +94,18 @@ class TransferService:
         self._progress_state = await self._load_progress_state()
         self._next_commit_id = self._progress_state.last_message_id + 1
 
+        # Bolt Optimization: Query RSS bytes once and reuse for both metrics to reduce utility overhead.
+        rss = current_rss_bytes()
         self._logger.info(
             "starting transfer",
             extra={
                 "status": "started",
                 "progress_last_message_id": self._progress_state.last_message_id,
                 "queued_tasks": 0,
-                "rss_bytes": current_rss_bytes(),
-                "rss_mb": round(current_rss_bytes() / (1024 * 1024), 2),
+                "rss_bytes": rss,
+                "rss_mb": round(rss / (1024 * 1024), 2),
             },
         )
-
 
         try:
             await self._run_pipeline()
@@ -149,13 +150,15 @@ class TransferService:
             except Exception:
                 if attempt >= 5:
                     raise
+                # Bolt Optimization: Query RSS bytes once and reuse for both metrics to reduce utility overhead.
+                rss = current_rss_bytes()
                 self._logger.warning(
                     "telegram scan retry",
                     extra={
                         "status": "retrying",
                         "message_id": self._progress_state.last_message_id,
-                        "rss_bytes": current_rss_bytes(),
-                        "rss_mb": round(current_rss_bytes() / (1024 * 1024), 2),
+                        "rss_bytes": rss,
+                        "rss_mb": round(rss / (1024 * 1024), 2),
                     },
                 )
                 await asyncio.sleep(scan_backoff)
@@ -186,13 +189,15 @@ class TransferService:
             except Exception as exc:
                 self._metrics.failed_messages += 1
                 self._failure = exc
+                # Bolt Optimization: Query RSS bytes once and reuse for both metrics to reduce utility overhead.
+                rss = current_rss_bytes()
                 self._logger.exception(
                     "message processing failed",
                     extra={
                         "status": "failed",
                         "message_id": message_id,
-                        "rss_bytes": current_rss_bytes(),
-                        "rss_mb": round(current_rss_bytes() / (1024 * 1024), 2),
+                        "rss_bytes": rss,
+                        "rss_mb": round(rss / (1024 * 1024), 2),
                     },
                 )
             else:
@@ -203,16 +208,18 @@ class TransferService:
         for attempt in range(1, 6):
             try:
                 return await self._process_message(message)
-            except Exception as exc:
+            except Exception:
                 if attempt == 5:
                     raise
+                # Bolt Optimization: Query RSS bytes once and reuse for both metrics to reduce utility overhead.
+                rss = current_rss_bytes()
                 self._logger.warning(
                     "message retry",
                     extra={
                         "status": "retrying",
                         "message_id": int(getattr(message, "id", 0) or 0),
-                        "rss_bytes": current_rss_bytes(),
-                        "rss_mb": round(current_rss_bytes() / (1024 * 1024), 2),
+                        "rss_bytes": rss,
+                        "rss_mb": round(rss / (1024 * 1024), 2),
                     },
                 )
                 await asyncio.sleep(backoff)
@@ -280,7 +287,6 @@ class TransferService:
                 self._record_outcome(outcome)
                 advanced = True
                 self._progress_state = ProgressState(last_message_id=outcome.message_id)
-                await self._persist_progress_state()
                 self._seen_ids.discard(self._next_commit_id)
                 self._next_commit_id += 1
                 continue
@@ -291,7 +297,8 @@ class TransferService:
 
             break
 
-        if force and not advanced:
+        # Bolt Optimization: Persist state only once after resolving all completed message IDs to shift from O(N) to O(1) network/disk operations.
+        if advanced or (force and not advanced):
             await self._persist_progress_state()
 
     async def _load_progress_state(self) -> ProgressState:
@@ -320,6 +327,8 @@ class TransferService:
         elif outcome.status == "skipped_unsupported":
             self._metrics.skipped_unsupported += 1
 
+        # Bolt Optimization: Query RSS bytes once and reuse for both metrics to reduce utility overhead.
+        rss = current_rss_bytes()
         self._logger.info(
             "message processed",
             extra={
@@ -330,8 +339,8 @@ class TransferService:
                 "size_bytes": outcome.size_bytes,
                 "speed_bytes_per_sec": outcome.bytes_per_second,
                 "duration_seconds": round(outcome.duration_seconds, 3),
-                "rss_bytes": current_rss_bytes(),
-                "rss_mb": round(current_rss_bytes() / (1024 * 1024), 2),
+                "rss_bytes": rss,
+                "rss_mb": round(rss / (1024 * 1024), 2),
             },
         )
 
@@ -362,6 +371,8 @@ class TransferService:
                 "queued_tasks": snapshot.queued_tasks,
             },
         )
+        # Bolt Optimization: Query RSS bytes once and reuse for both metrics to reduce utility overhead.
+        rss = current_rss_bytes()
         self._logger.info(
             "transfer finished",
             extra={
@@ -374,7 +385,7 @@ class TransferService:
                 "failed_messages": summary["failed_messages"],
                 "bytes_uploaded": summary["bytes_uploaded"],
                 "throughput_bytes_per_sec": summary["throughput_bytes_per_sec"],
-                "rss_bytes": current_rss_bytes(),
-                "rss_mb": round(current_rss_bytes() / (1024 * 1024), 2),
+                "rss_bytes": rss,
+                "rss_mb": round(rss / (1024 * 1024), 2),
             },
         )
