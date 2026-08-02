@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import mimetypes
 import os
@@ -308,12 +307,17 @@ def format_speed(bytes_per_second: float) -> str:
     return f"{format_bytes(bytes_per_second)}/s"
 
 
-def current_rss_bytes() -> int:
-    try:
-        import psutil  # type: ignore
+_PROCESS = None
 
-        process = psutil.Process()
-        return int(process.memory_info().rss)
+
+def current_rss_bytes() -> int:
+    global _PROCESS
+    try:
+        if _PROCESS is None:
+            import psutil  # type: ignore
+
+            _PROCESS = psutil.Process()
+        return int(_PROCESS.memory_info().rss)
     except Exception:
         return 0
 
