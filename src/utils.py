@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import mimetypes
 import os
@@ -13,6 +12,9 @@ from urllib.parse import urlparse
 
 from aiofiles import open as aio_open
 from dotenv import load_dotenv
+
+
+_PROCESS = None
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -309,11 +311,12 @@ def format_speed(bytes_per_second: float) -> str:
 
 
 def current_rss_bytes() -> int:
+    global _PROCESS
     try:
-        import psutil  # type: ignore
-
-        process = psutil.Process()
-        return int(process.memory_info().rss)
+        if _PROCESS is None:
+            import psutil  # type: ignore
+            _PROCESS = psutil.Process()
+        return int(_PROCESS.memory_info().rss)
     except Exception:
         return 0
 

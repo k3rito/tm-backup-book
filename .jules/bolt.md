@@ -1,0 +1,3 @@
+## 2025-02-18 - [Batching Progress State Persistence & psutil Process Caching]
+**Learning:** Progress state persistence via R2 and local storage within the sequential flush loop results in an $O(N)$ overhead where $N$ is the number of processed messages. Moving it outside the loop yields $O(1)$ complexity per flush. Additionally, redundant imports and instantiations of `psutil.Process()` on every memory metric call is a measurable CPU overhead that can be resolved by lazy global caching.
+**Action:** Always batch R2 metadata/state updates outside sequential loops and reuse expensive system process objects globally.
