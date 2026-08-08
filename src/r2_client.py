@@ -11,7 +11,7 @@ import aioboto3
 from botocore.config import Config
 from botocore.exceptions import ClientError, ConnectionClosedError, EndpointConnectionError, ReadTimeoutError
 
-from utils import AppConfig
+from utils import AppConfig, format_speed
 
 
 RETRYABLE_EXCEPTIONS = (EndpointConnectionError, ConnectionClosedError, ReadTimeoutError, asyncio.TimeoutError)
