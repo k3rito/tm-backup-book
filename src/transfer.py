@@ -105,7 +105,6 @@ class TransferService:
             },
         )
 
-
         try:
             await self._run_pipeline()
             await self._flush_completed(force=True)
@@ -203,7 +202,7 @@ class TransferService:
         for attempt in range(1, 6):
             try:
                 return await self._process_message(message)
-            except Exception as exc:
+            except Exception:
                 if attempt == 5:
                     raise
                 self._logger.warning(
@@ -280,7 +279,6 @@ class TransferService:
                 self._record_outcome(outcome)
                 advanced = True
                 self._progress_state = ProgressState(last_message_id=outcome.message_id)
-                await self._persist_progress_state()
                 self._seen_ids.discard(self._next_commit_id)
                 self._next_commit_id += 1
                 continue
@@ -291,7 +289,14 @@ class TransferService:
 
             break
 
-        if force and not advanced:
+        # ⚡ Bolt Optimization: Batch state persistence.
+        # Previously, `self._persist_progress_state()` was invoked inside the `while` loop for
+        # every single sequential outcome that was flushed. Since `_persist_progress_state` performs
+        # synchronous local disk writes and a remote R2 API PUT call, calling it O(N) times
+        # in a sequential hot path creates a severe performance bottleneck.
+        # By moving the persistence call outside the loop, we batch the storage updates so we only
+        # write and sync with R2 at most ONCE per invocation of `_flush_completed` (O(1) complexity).
+        if advanced or force:
             await self._persist_progress_state()
 
     async def _load_progress_state(self) -> ProgressState:
