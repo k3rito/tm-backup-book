@@ -1,0 +1,3 @@
+## 2026-08-09 - O(N) Sequential I/O and Network Persistence Bottleneck in Loop
+**Learning:** In pipelines processing sequential states or queues, triggering storage and remote API updates (like R2 state PUT and file writes) inside sequential popping/flushing loops creates a severe O(N) bottleneck. This results in heavy network/disk I/O overhead proportional to the batch size being flushed.
+**Action:** Always batch persistence operations. Accumulate the final state in memory through the loop, and invoke the persistence mechanism exactly once (O(1) complexity) after the entire batch/loop completes.
