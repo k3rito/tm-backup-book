@@ -1,0 +1,3 @@
+## 2025-02-13 - Caching Process Objects and Batching IO Flushes
+**Learning:** Instantiating `psutil.Process()` on every telemetry/RSS memory check introduces significant CPU overhead (taking ~0.064s per 1000 calls instead of ~0.026s with caching). Additionally, executing progress persistence `_persist_progress_state()` on every popped sequential message within the `_flush_completed` loop acts as an O(N) performance bottleneck, as it forces repeated synchronously-awaited S3 bucket put operations and local write actions.
+**Action:** Always cache library process state instances globally to achieve a ~2.5x speedup for telemetry checks, and batch state persistence logic to occur after event/flush loops to scale with O(1) performance instead of O(N).
