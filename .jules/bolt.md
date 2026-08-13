@@ -1,0 +1,3 @@
+## 2025-02-15 - Progress State Flush I/O Bottleneck
+**Learning:** In highly concurrent pipelines processing many items sequentially, executing full I/O operations (like local disk writes and network storage updates) on every single loop iteration introduces massive bottlenecks ($O(N)$ operations). Batching progress serialization to occur exactly once at the end of the flush loop reduces the overhead to $O(1)$ operations with zero loss in data integrity.
+**Action:** Always verify if state persistence inside iterative loops can be batched or deferred outside the loop to minimize unnecessary local and network I/O.
