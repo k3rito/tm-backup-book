@@ -1,0 +1,3 @@
+## 2025-02-15 - [Batch Progress Persistence and Caching System Metrics]
+**Learning:** Progress persistence `_persist_progress_state` inside the flush loop behaves as an O(N) network and IO bottleneck. Deferring the state save to after the flush loop is complete yields an O(1) complexity. Additionally, repeatedly initializing `psutil.Process()` to check RSS memory usage incurs expensive syscalls, which can be mitigated by lazily caching the process instance globally and avoiding redundant calls within the same logging execution.
+**Action:** Always batch state sync operations outside of sequential processing loops, lazily cache process/system identifiers, and reuse captured metric values instead of calling resource-heavy APIs multiple times.
