@@ -1,0 +1,3 @@
+## 2025-02-18 - Progress State Batching & RSS Process Caching
+**Learning:** Calling `_persist_progress_state()` inside the item processing loop of `_flush_completed` creates an O(N) network and disk bottleneck by sending a separate Cloudflare R2 PUT request for every single completed outcome. Moving state persistence outside the loop reduces state updates to O(1) per flush batch. Additionally, instantiating `psutil.Process()` inside `current_rss_bytes()` on every metric call adds object allocation overhead, which is eliminated by caching `_PROCESS` globally.
+**Action:** Always batch state persistence calls outside loop iterations when flushing sequential progress, and cache process handles when measuring system metrics frequently.
