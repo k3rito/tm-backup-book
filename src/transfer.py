@@ -280,7 +280,6 @@ class TransferService:
                 self._record_outcome(outcome)
                 advanced = True
                 self._progress_state = ProgressState(last_message_id=outcome.message_id)
-                await self._persist_progress_state()
                 self._seen_ids.discard(self._next_commit_id)
                 self._next_commit_id += 1
                 continue
@@ -291,7 +290,10 @@ class TransferService:
 
             break
 
-        if force and not advanced:
+        # Performance Optimization: Batch progress state persistence outside the flush loop.
+        # Persisting state on every contiguous message causes redundant network (R2 put_object) and file I/O calls.
+        # Batching persistence to execute once per flush reduces state sync from O(N) to O(1) per flush cycle.
+        if advanced or force:
             await self._persist_progress_state()
 
     async def _load_progress_state(self) -> ProgressState:
