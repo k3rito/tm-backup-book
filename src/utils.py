@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import mimetypes
 import os
@@ -25,6 +24,10 @@ APP_LOG_FILE = LOGS_DIR / "app.log"
 R2_PROGRESS_KEY = "state/progress.json"
 DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024
 TELEGRAM_REQUEST_SIZE = 512 * 1024
+
+_RE_NON_ALPHANUM = re.compile(r"[^A-Za-z0-9._-]+")
+_RE_UNDERSCORES = re.compile(r"_+")
+_PROCESS: Any | None = None
 SUPPORTED_ARCHIVE_EXTENSIONS = {
     ".7z",
     ".bz2",
@@ -144,8 +147,9 @@ def sanitize_filename(value: str, fallback: str = "file") -> str:
     value = value.strip().replace("\\", "/")
     if "/" in value:
         value = value.split("/")[-1]
-    value = re.sub(r"[^A-Za-z0-9._-]+", "_", value)
-    value = re.sub(r"_+", "_", value).strip("._-")
+    # Use pre-compiled regexes to avoid re-compilation overhead during frequent calls
+    value = _RE_NON_ALPHANUM.sub("_", value)
+    value = _RE_UNDERSCORES.sub("_", value).strip("._-")
     if not value:
         value = fallback
     if len(value) > 180:
@@ -172,7 +176,8 @@ def classify_media(message: Any) -> str | None:
 
     file_name = getattr(file_info, "name", None) or ""
     content_type = (getattr(file_info, "mime_type", None) or "").lower()
-    extension = Path(file_name).suffix.lower()
+    # Use os.path.splitext to avoid pathlib.Path instantiation overhead
+    extension = os.path.splitext(file_name)[1].lower()
 
     if getattr(message, "photo", None):
         return "photo"
@@ -309,11 +314,14 @@ def format_speed(bytes_per_second: float) -> str:
 
 
 def current_rss_bytes() -> int:
+    global _PROCESS
     try:
-        import psutil  # type: ignore
+        if _PROCESS is None:
+            import psutil  # type: ignore
 
-        process = psutil.Process()
-        return int(process.memory_info().rss)
+            _PROCESS = psutil.Process()
+        # Use cached psutil.Process instance to avoid re-instantiation overhead on every log call
+        return int(_PROCESS.memory_info().rss)
     except Exception:
         return 0
 
