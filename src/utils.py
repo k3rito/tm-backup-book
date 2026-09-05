@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import mimetypes
 import os
@@ -172,7 +171,8 @@ def classify_media(message: Any) -> str | None:
 
     file_name = getattr(file_info, "name", None) or ""
     content_type = (getattr(file_info, "mime_type", None) or "").lower()
-    extension = Path(file_name).suffix.lower()
+    # Fast extension extraction using os.path.splitext avoids pathlib.Path instantiation overhead.
+    extension = os.path.splitext(file_name)[1].lower()
 
     if getattr(message, "photo", None):
         return "photo"
