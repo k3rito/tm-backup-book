@@ -1,0 +1,3 @@
+## 2026-03-08 - Batching Progress State Persistence in Transfer Flushing
+**Learning:** In `TransferService._flush_completed`, invoking `_persist_progress_state()` inside the message outcome commit loop causes $O(N)$ local disk I/O and Cloudflare R2 S3 PUT API calls per flush. Moving `_persist_progress_state()` to run once after the sequential outcome processing loop reduces persistence operations from $O(N)$ to $O(1)$ per batch flush without compromising state correctness.
+**Action:** Always batch persistence and network synchronization calls outside of sequential message processing loops when state only needs to capture the latest committed progress boundary.
