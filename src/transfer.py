@@ -280,7 +280,6 @@ class TransferService:
                 self._record_outcome(outcome)
                 advanced = True
                 self._progress_state = ProgressState(last_message_id=outcome.message_id)
-                await self._persist_progress_state()
                 self._seen_ids.discard(self._next_commit_id)
                 self._next_commit_id += 1
                 continue
@@ -291,7 +290,9 @@ class TransferService:
 
             break
 
-        if force and not advanced:
+        # Optimization: Batch progress state persistence outside the flush loop
+        # to reduce network calls to Cloudflare R2 and local disk I/O from O(N) to O(1) per batch.
+        if advanced or force:
             await self._persist_progress_state()
 
     async def _load_progress_state(self) -> ProgressState:
