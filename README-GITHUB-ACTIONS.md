@@ -2,9 +2,9 @@
 
 This project can run from GitHub Actions on a 15-minute schedule or manually with `workflow_dispatch`.
 
-## GitHub Secrets
+## GitHub Secrets / Variables
 
-Add these secrets to the repository:
+Set these values in repository secrets (preferred) or repository variables:
 
 - `API_ID`
 - `API_HASH`
@@ -14,11 +14,11 @@ Add these secrets to the repository:
 - `R2_ACCESS_KEY`
 - `R2_SECRET_KEY`
 - `MAX_CONCURRENT_UPLOADS`
-- `TELEGRAM_SESSION_STRING`
+- `TELEGRAM_SESSION_STRING` (or legacy `TELEGRAM_STRING_SESSION`)
 
 Notes:
 
-- `TELEGRAM_SESSION_STRING` is required. The workflow does not support interactive Telegram login.
+- A Telegram session is required. The workflow reads `TELEGRAM_SESSION_STRING` first, then falls back to legacy `TELEGRAM_STRING_SESSION`.
 - `MAX_CONCURRENT_UPLOADS` should usually stay at `3` unless you have a specific throughput reason to change it.
 
 ## Session String Generation
