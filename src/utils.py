@@ -46,6 +46,9 @@ SUPPORTED_ARCHIVE_MIME_TYPES = {
     "application/x-xz",
     "application/zip",
 }
+# Pre-compile regular expressions at module scope to avoid re-compilation on every sanitize_filename call
+_RE_NON_ALPHANUM = re.compile(r"[^A-Za-z0-9._-]+")
+_RE_UNDERSCORES = re.compile(r"_+")
 
 
 @dataclass(frozen=True)
@@ -143,8 +146,8 @@ def sanitize_filename(value: str, fallback: str = "file") -> str:
     value = value.strip().replace("\\", "/")
     if "/" in value:
         value = value.split("/")[-1]
-    value = re.sub(r"[^A-Za-z0-9._-]+", "_", value)
-    value = re.sub(r"_+", "_", value).strip("._-")
+    value = _RE_NON_ALPHANUM.sub("_", value)
+    value = _RE_UNDERSCORES.sub("_", value).strip("._-")
     if not value:
         value = fallback
     if len(value) > 180:
