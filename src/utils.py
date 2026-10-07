@@ -169,16 +169,18 @@ def classify_media(message: Any) -> str | None:
     if file_info is None:
         return None
 
-    file_name = getattr(file_info, "name", None) or ""
-    content_type = (getattr(file_info, "mime_type", None) or "").lower()
-    extension = Path(file_name).suffix.lower()
-
+    # Performance optimization: check cheap boolean media attributes first
+    # to avoid unnecessary string allocations, lowercasing, and Path object overhead
     if getattr(message, "photo", None):
         return "photo"
     if getattr(message, "video", None) or getattr(message, "video_note", None):
         return "video"
     if getattr(message, "audio", None) or getattr(message, "voice", None):
         return "audio"
+
+    file_name = getattr(file_info, "name", None) or ""
+    content_type = (getattr(file_info, "mime_type", None) or "").lower()
+    extension = os.path.splitext(file_name)[1].lower()
 
     if extension in SUPPORTED_ARCHIVE_EXTENSIONS or content_type in SUPPORTED_ARCHIVE_MIME_TYPES:
         return "archive"
