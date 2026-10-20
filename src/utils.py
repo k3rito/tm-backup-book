@@ -47,6 +47,12 @@ SUPPORTED_ARCHIVE_MIME_TYPES = {
     "application/zip",
 }
 
+# Pre-compiled regular expressions for high-frequency string sanitization
+_RE_NON_ALPHANUM = re.compile(r"[^A-Za-z0-9._-]+")
+_RE_UNDERSCORES = re.compile(r"_+")
+# Lazily initialized process handle for RSS memory tracking
+_PROCESS: Any = None
+
 
 @dataclass(frozen=True)
 class AppConfig:
@@ -143,8 +149,8 @@ def sanitize_filename(value: str, fallback: str = "file") -> str:
     value = value.strip().replace("\\", "/")
     if "/" in value:
         value = value.split("/")[-1]
-    value = re.sub(r"[^A-Za-z0-9._-]+", "_", value)
-    value = re.sub(r"_+", "_", value).strip("._-")
+    value = _RE_NON_ALPHANUM.sub("_", value)
+    value = _RE_UNDERSCORES.sub("_", value).strip("._-")
     if not value:
         value = fallback
     if len(value) > 180:
@@ -308,11 +314,13 @@ def format_speed(bytes_per_second: float) -> str:
 
 
 def current_rss_bytes() -> int:
+    global _PROCESS
     try:
-        import psutil  # type: ignore
+        if _PROCESS is None:
+            import psutil  # type: ignore
 
-        process = psutil.Process()
-        return int(process.memory_info().rss)
+            _PROCESS = psutil.Process()
+        return int(_PROCESS.memory_info().rss)
     except Exception:
         return 0
 
