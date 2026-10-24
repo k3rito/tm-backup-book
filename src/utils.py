@@ -145,6 +145,11 @@ def normalize_channel_ref(value: str) -> str:
     return value.lstrip("@").strip()
 
 
+# Pre-compile regexes at module scope to avoid re-compilation in sanitize_filename
+_RE_NON_ALPHANUM = re.compile(r"[^A-Za-z0-9._-]+")
+_RE_UNDERSCORES = re.compile(r"_+")
+
+
 def sanitize_filename(value: str, fallback: str = "file") -> str:
     value = value.strip().replace("\\", "/")
     if "/" in value:
@@ -175,16 +180,18 @@ def classify_media(message: Any) -> str | None:
     if file_info is None:
         return None
 
-    file_name = getattr(file_info, "name", None) or ""
-    content_type = (getattr(file_info, "mime_type", None) or "").lower()
-    extension = Path(file_name).suffix.lower()
-
+    # Performance optimization: Check cheap boolean attributes (photo, video, audio)
+    # first before performing extension parsing (os.path.splitext) or MIME string operations.
     if getattr(message, "photo", None):
         return "photo"
     if getattr(message, "video", None) or getattr(message, "video_note", None):
         return "video"
     if getattr(message, "audio", None) or getattr(message, "voice", None):
         return "audio"
+
+    file_name = getattr(file_info, "name", None) or ""
+    content_type = (getattr(file_info, "mime_type", None) or "").lower()
+    extension = os.path.splitext(file_name)[1].lower()
 
     if extension in SUPPORTED_ARCHIVE_EXTENSIONS or content_type in SUPPORTED_ARCHIVE_MIME_TYPES:
         return "archive"
@@ -199,11 +206,14 @@ def is_supported_media(message: Any) -> bool:
 def resolve_media_filename(message: Any, kind: str) -> str:
     file_info = getattr(message, "file", None)
     original_name = sanitize_filename(getattr(file_info, "name", None) or "", fallback="") if file_info else ""
-    content_type = (getattr(file_info, "mime_type", None) or "").lower() if file_info else ""
-    message_id = getattr(message, "id", 0) or 0
 
+    # Performance optimization: Defer content_type lowercasing and message_id extraction
+    # until after confirming original_name is not present.
     if original_name:
         return original_name
+
+    content_type = (getattr(file_info, "mime_type", None) or "").lower() if file_info else ""
+    message_id = getattr(message, "id", 0) or 0
 
     if kind == "photo":
         extension = _guess_extension(content_type) or ".jpg"
