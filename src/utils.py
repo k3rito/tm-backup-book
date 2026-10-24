@@ -46,6 +46,9 @@ SUPPORTED_ARCHIVE_MIME_TYPES = {
     "application/x-xz",
     "application/zip",
 }
+# Pre-compile regular expressions at module scope to avoid re-compilation on every sanitize_filename call
+_RE_NON_ALPHANUM = re.compile(r"[^A-Za-z0-9._-]+")
+_RE_UNDERSCORES = re.compile(r"_+")
 
 # Pre-compiled regular expressions for high-frequency string sanitization
 _RE_NON_ALPHANUM = re.compile(r"[^A-Za-z0-9._-]+")
