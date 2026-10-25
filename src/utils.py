@@ -175,16 +175,18 @@ def classify_media(message: Any) -> str | None:
     if file_info is None:
         return None
 
-    file_name = getattr(file_info, "name", None) or ""
-    content_type = (getattr(file_info, "mime_type", None) or "").lower()
-    extension = Path(file_name).suffix.lower()
-
+    # Defer string lowercasing, extension parsing, and os.path.splitext until after cheap boolean media checks
     if getattr(message, "photo", None):
         return "photo"
     if getattr(message, "video", None) or getattr(message, "video_note", None):
         return "video"
     if getattr(message, "audio", None) or getattr(message, "voice", None):
         return "audio"
+
+    file_name = getattr(file_info, "name", None) or ""
+    content_type = (getattr(file_info, "mime_type", None) or "").lower()
+    # Replace Path(file_name).suffix.lower() with os.path.splitext to avoid pathlib.Path instantiation overhead
+    extension = os.path.splitext(file_name)[1].lower()
 
     if extension in SUPPORTED_ARCHIVE_EXTENSIONS or content_type in SUPPORTED_ARCHIVE_MIME_TYPES:
         return "archive"
@@ -199,11 +201,12 @@ def is_supported_media(message: Any) -> bool:
 def resolve_media_filename(message: Any, kind: str) -> str:
     file_info = getattr(message, "file", None)
     original_name = sanitize_filename(getattr(file_info, "name", None) or "", fallback="") if file_info else ""
-    content_type = (getattr(file_info, "mime_type", None) or "").lower() if file_info else ""
-    message_id = getattr(message, "id", 0) or 0
-
     if original_name:
         return original_name
+
+    # Defer content_type lowercasing until needed for fallback extension resolution
+    content_type = (getattr(file_info, "mime_type", None) or "").lower() if file_info else ""
+    message_id = getattr(message, "id", 0) or 0
 
     if kind == "photo":
         extension = _guess_extension(content_type) or ".jpg"
