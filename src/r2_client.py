@@ -167,12 +167,7 @@ class R2Client:
                 content_type=content_type,
             )
 
-        upload_id = await self._create_multipart_upload(
-            key=key,
-            content_type=content_type,
-            content_disposition=content_disposition,
-            metadata=metadata,
-        )
+        upload_id: str | None = None
         started_at = time.perf_counter()
         uploaded_bytes = 0
         buffer = bytearray()
@@ -187,23 +182,47 @@ class R2Client:
                 uploaded_bytes += len(chunk)
 
                 while len(buffer) >= chunk_size:
+                    if upload_id is None:
+                        # Defer multipart initialization until chunk_size threshold is reached
+                        upload_id = await self._create_multipart_upload(
+                            key=key,
+                            content_type=content_type,
+                            content_disposition=content_disposition,
+                            metadata=metadata,
+                        )
                     part = bytes(buffer[:chunk_size])
                     del buffer[:chunk_size]
                     etag = await self._upload_part(key=key, upload_id=upload_id, part_number=part_number, body=part)
                     parts.append({"ETag": etag, "PartNumber": part_number})
                     part_number += 1
 
-            if buffer or not parts:
-                part = bytes(buffer)
-                etag = await self._upload_part(key=key, upload_id=upload_id, part_number=part_number, body=part)
-                parts.append({"ETag": etag, "PartNumber": part_number})
-
             if size_bytes and uploaded_bytes != size_bytes:
                 raise R2UploadError(
                     f"Integrity check failed for key {key}: expected {size_bytes} bytes, received {uploaded_bytes} bytes"
                 )
 
-            await self._complete_upload(key=key, upload_id=upload_id, parts=parts)
+            if upload_id is None:
+                # Optimization: payload fits entirely in chunk_size (<= 8 MB).
+                # Upload via single put_object call, reducing R2 API requests from 3 to 1 (66.7% reduction).
+                await self._retry(
+                    "put_object_single",
+                    lambda: client.put_object(
+                        Bucket=self._config.r2_bucket,
+                        Key=key,
+                        Body=bytes(buffer),
+                        ContentType=content_type,
+                        ContentDisposition=content_disposition,
+                        Metadata=metadata,
+                    ),
+                )
+            else:
+                if buffer or not parts:
+                    part = bytes(buffer)
+                    etag = await self._upload_part(key=key, upload_id=upload_id, part_number=part_number, body=part)
+                    parts.append({"ETag": etag, "PartNumber": part_number})
+
+                await self._complete_upload(key=key, upload_id=upload_id, parts=parts)
+
             duration_seconds = max(time.perf_counter() - started_at, 1e-6)
             bytes_per_second = uploaded_bytes / duration_seconds
             return UploadResult(
@@ -214,8 +233,9 @@ class R2Client:
                 content_type=content_type,
             )
         except Exception as exc:
-            await self._abort_upload(key=key, upload_id=upload_id)
-            raise R2UploadError(f"Multipart upload failed for key: {key}") from exc
+            if upload_id is not None:
+                await self._abort_upload(key=key, upload_id=upload_id)
+            raise R2UploadError(f"Upload failed for key: {key}") from exc
 
     async def _create_multipart_upload(
         self,
